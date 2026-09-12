@@ -1,17 +1,259 @@
 generator client {
   provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+// ------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------
+
+enum Role {
+  ADMIN
+  SELLER
+  STOCK
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELED
+}
+
+enum MovementType {
+  IN
+  OUT
+}
+
+// ------------------------------------------------------
+// USERS
+// ------------------------------------------------------
+
 model User {
   id        String   @id @default(uuid())
   name      String
   email     String   @unique
   password  String
+  role      Role     @default(SELLER)
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  sales     Sale[]
+  purchases Purchase[]
+
+  @@map("users")
+}
+
+// ------------------------------------------------------
+// CLIENTS
+// ------------------------------------------------------
+
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  document  String?
+  address   String?
+  city      String?
+  state     String?
+  zipCode   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales Sale[]
+
+  @@map("clients")
+}
+
+// ------------------------------------------------------
+// SUPPLIERS
+// ------------------------------------------------------
+
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  document  String?
+  address   String?
+  city      String?
+  state     String?
+  zipCode   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products  Product[]
+  purchases Purchase[]
+
+  @@map("suppliers")
+}
+
+// ------------------------------------------------------
+// CATEGORIES
+// ------------------------------------------------------
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  products Product[]
+
+  @@map("categories")
+}
+
+// ------------------------------------------------------
+// PRODUCTS
+// ------------------------------------------------------
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  sku         String   @unique
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  costPrice   Decimal  @db.Decimal(10, 2)
+  unit        String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
+
+  stock          Stock?
+  stockMovements StockMovement[]
+  salesDetail    SaleDetail[]
+  purchaseDetail PurchaseDetail[]
+
+  @@map("products")
+}
+
+// ------------------------------------------------------
+// STOCKS (1:1 com Product)
+// ------------------------------------------------------
+
+model Stock {
+  id          String   @id @default(uuid())
+  quantity    Int      @default(0)
+  minQuantity Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("stocks")
+}
+
+// ------------------------------------------------------
+// STOCK MOVEMENTS (histórico de entradas/saídas)
+// ------------------------------------------------------
+
+model StockMovement {
+  id        String       @id @default(uuid())
+  type      MovementType
+  quantity  Int
+  reason    String?
+  createdAt DateTime     @default(now())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  saleId String?
+  sale   Sale?   @relation(fields: [saleId], references: [id])
+
+  purchaseId String?
+  purchase   Purchase? @relation(fields: [purchaseId], references: [id])
+
+  @@map("stockMovements")
+}
+
+// ------------------------------------------------------
+// SALES (cabeçalho) + SALES DETAIL (itens)
+// ------------------------------------------------------
+
+model Sale {
+  id          String      @id @default(uuid())
+  saleDate    DateTime    @default(now())
+  status      OrderStatus @default(PENDING)
+  discount    Decimal     @default(0) @db.Decimal(10, 2)
+  totalAmount Decimal     @db.Decimal(10, 2)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  items          SaleDetail[]
+  stockMovements StockMovement[]
+
+  @@map("sales")
+}
+
+model SaleDetail {
+  id        String  @id @default(uuid())
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  discount  Decimal @default(0) @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
+
+  saleId String
+  sale   Sale   @relation(fields: [saleId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("salesDetail")
+}
+
+// ------------------------------------------------------
+// PURCHASES (cabeçalho) + PURCHASE DETAIL (itens)
+// ------------------------------------------------------
+
+model Purchase {
+  id           String      @id @default(uuid())
+  purchaseDate DateTime    @default(now())
+  status       OrderStatus @default(PENDING)
+  totalAmount  Decimal     @db.Decimal(10, 2)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  items          PurchaseDetail[]
+  stockMovements StockMovement[]
+
+  @@map("purchases")
+}
+
+model PurchaseDetail {
+  id       String  @id @default(uuid())
+  quantity Int
+  unitCost Decimal @db.Decimal(10, 2)
+  subtotal Decimal @db.Decimal(10, 2)
+
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("purchaseDetail")
 }
