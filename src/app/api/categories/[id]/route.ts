@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { handleApiError } from '@/lib/api-error';
 
 // PUT /api/categories/:id — atualiza uma categoria existente
 export async function PUT(
@@ -25,27 +26,29 @@ export async function PUT(
   }
 }
 
-// DELETE /api/categories/:id — remove uma categoria
+// DELETE /api/categories/:id — remove uma categoria (apenas ADMIN)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
+    const role = request.headers.get('x-user-role');
 
-    await prisma.category.delete({
-      where: { id },
-    });
+    if (role !== 'ADMIN') {
+      return NextResponse.json(
+        { message: 'Apenas administradores podem remover categorias' },
+        { status: 403 },
+      );
+    }
+
+    const { id } = await params;
+    await prisma.category.delete({ where: { id } });
 
     return NextResponse.json(
       { message: 'Categoria removida com sucesso' },
       { status: 200 },
     );
   } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      { message: 'Erro ao remover categoria' },
-      { status: 500 },
-    );
+    return handleApiError(error);
   }
 }
